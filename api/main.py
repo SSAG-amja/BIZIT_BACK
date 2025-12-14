@@ -12,12 +12,10 @@ app = FastAPI(
 )
 
 #라우터 등록
-app.include_router(analysis_router)
 app.include_router(user_router)
-app.include_router(favorites_router)
-app.include_router(description_router)
-app.include_router(news_router)
-app.include_router(history_router)
+app.include_router(analysis_router)
+app.include_router(data_router)
+app.include_router(solution_router)
 
 #프론트엔드 통신
 app.add_middleware(
