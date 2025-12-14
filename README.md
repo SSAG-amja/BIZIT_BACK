@@ -35,6 +35,3 @@ pip install -r requirements.txt
 ```
 python -m uvicorn api.main:app --reload
 ```
-=======
-# BIZIT_BACK
->>>>>>> 914db5f3e85dc9641c431dfd10f0fbd08e0df206
