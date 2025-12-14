@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 1. 실행방법
 
 1. 프로젝트 폴더로 이동
@@ -34,3 +35,6 @@ pip install -r requirements.txt
 ```
 python -m uvicorn api.main:app --reload
 ```
+=======
+# BIZIT_BACK
+>>>>>>> 914db5f3e85dc9641c431dfd10f0fbd08e0df206
