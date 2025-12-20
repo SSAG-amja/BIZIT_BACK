@@ -2,6 +2,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
 import os
 
+load_dotenv()
+
 MONGO_URL = os.getenv("MONGO_URL")
 
 #await 붙여야함- 비동기 실행
