@@ -7,7 +7,7 @@ from schemas.aroundLocInfo import SurroundingSchema, Coordinate # 제공해주�
 from datetime import datetime
 import csv
 import io
-from analysis.compare import run_analysis
+from api.analysis import run_analysis
 import requests # Kakao용 (기존 유지)
 import httpx    # 공공데이터용 (신규 추가, 비동기 요청용)
 import asyncio  # 병렬 처리를 위해 추가
