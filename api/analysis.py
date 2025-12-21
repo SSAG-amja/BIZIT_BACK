@@ -7,17 +7,17 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from core.security import get_current_user
 
-# .env 파일 로드 (요청하신 그대로 유지)
+# .env 파일 로드
 load_dotenv()
 
 MONGO_URI = os.getenv("MONGO_URL")
 DB_NAME = "BIZIT_DB"
 
-# 파일 경로 절대 경로로 설정 (요청하신 그대로 유지)
+# 파일 경로 절대 경로로 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MARKET_CSV = os.path.join(BASE_DIR, "data_set", "서울상권_추정매출.csv")
 
-# 라우터 정의 (API 엔드포인트 등록용)
+# 라우터 정의
 router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 def classify_percentile(ratio: float):
@@ -29,9 +29,6 @@ def classify_percentile(ratio: float):
     else: return ("BOTTOM", "하위 10~20%")
 
 def ym_to_quarter_code(ym: str) -> str:
-    """
-    YYYY-MM -> YYYYQ 변환
-    """
     year, month = ym.split("-")
     month = int(month)
     if month <= 3: q = "1"
@@ -40,7 +37,6 @@ def ym_to_quarter_code(ym: str) -> str:
     else: q = "4"
     return f"{year}{q}"
 
-# store.py에서 import해서 쓸 함수 (내용 100% 동일)
 def run_analysis(user_email: str):
     print(f"\n========== [DEBUG] 분석 시작: {user_email} ==========")
     
@@ -93,8 +89,7 @@ def run_analysis(user_email: str):
         market_df["서비스_업종_코드"] = market_df["서비스_업종_코드"].astype(str)
         market_df["기준_년분기_코드"] = market_df["기준_년분기_코드"].astype(str)
 
-        # ▼▼▼ [핵심 수정] CSV에 존재하는 '가장 최신 분기' 찾기 ▼▼▼
-        # 예: CSV가 20253분기까지만 있다면, latest_db_quarter = "20253"
+        # CSV 최신 분기 확인
         all_quarters = sorted(market_df["기준_년분기_코드"].unique())
         if not all_quarters:
             print("!!! [ERROR] CSV 파일에 분기 데이터가 없습니다.")
@@ -102,34 +97,27 @@ def run_analysis(user_email: str):
         latest_db_quarter = all_quarters[-1]
         print(f"[DEBUG] CSV 최신 분기: {latest_db_quarter}")
 
-        # ▼▼▼ [핵심 수정] 미래 분기 보정 함수 ▼▼▼
+        # 미래 분기 보정 함수
         def get_adjusted_quarter(ym):
-            """
-            날짜를 분기 코드로 바꾸되, CSV에 없는 미래 분기라면
-            CSV의 가장 최신 분기로 대치한다.
-            """
             q_code = ym_to_quarter_code(ym)
             if q_code > latest_db_quarter:
-                return latest_db_quarter  # 미래면 최신값 리턴
+                return latest_db_quarter
             return q_code
 
         # 내 매출 월들을 '보정된' 분기 코드로 변환
-        # 예: 2025-10(20254) -> CSV에 없으면 20253으로 변환되어 리스트에 들어감
         adjusted_quarters = [get_adjusted_quarter(ym) for ym in months]
 
-        # 4. 비교 데이터 추출 (보정된 쿼터 사용)
-        # A. 서울시 전체
+        # 4. 비교 데이터 추출
         industry_all_df = market_df[
             (market_df["서비스_업종_코드"] == sector_code) &
-            (market_df["기준_년분기_코드"].isin(adjusted_quarters)) # <--- 보정된 쿼터로 검색
+            (market_df["기준_년분기_코드"].isin(adjusted_quarters))
         ]
         quarter_avg_all_map = industry_all_df.groupby("기준_년분기_코드")["당월_매출_금액"].mean().to_dict()
 
-        # B. 내 행정동
         industry_dong_df = market_df[
             (market_df["서비스_업종_코드"] == sector_code) &
             (market_df["행정동_코드"] == admin_code) &
-            (market_df["기준_년분기_코드"].isin(adjusted_quarters)) # <--- 보정된 쿼터로 검색
+            (market_df["기준_년분기_코드"].isin(adjusted_quarters))
         ]
         quarter_avg_dong_map = industry_dong_df.groupby("기준_년분기_코드")["당월_매출_금액"].mean().to_dict()
 
@@ -138,19 +126,14 @@ def run_analysis(user_email: str):
         industry_trend_dong = []
 
         for ym in months:
-            # 여기서도 get_adjusted_quarter를 사용하여 키를 찾습니다.
             q_key = get_adjusted_quarter(ym)
-            
             val_all = int(quarter_avg_all_map.get(q_key, 0))
             val_dong = int(quarter_avg_dong_map.get(q_key, 0))
-            
             industry_trend_all.append(val_all)
             industry_trend_dong.append(val_dong)
 
         # 5. 지표 계산
         latest_benchmark = industry_trend_dong[-1]
-        
-        # 행정동 데이터가 아예 0이면 서울시 전체 평균으로 대체
         if latest_benchmark == 0:
              latest_benchmark = industry_trend_all[-1] if industry_trend_all[-1] > 0 else 1
 
@@ -164,7 +147,7 @@ def run_analysis(user_email: str):
             mom = ((my_latest_revenue - prev_revenue) / prev_revenue) * 100
         direction = "UP" if mom > 1 else "DOWN" if mom < -1 else "FLAT"
 
-        # 6. 저장
+        # 6. 저장 (Upsert 적용)
         final_result = {
             "user_email": user_email,
             "created_at": datetime.utcnow(),
@@ -195,14 +178,19 @@ def run_analysis(user_email: str):
             }
         }
 
-        db.analysis.insert_one(final_result)
+        # ▼▼▼ [수정된 부분] insert_one 대신 update_one(upsert=True) 사용 ▼▼▼
+        db.analysisInfo.update_one(
+            {"user_email": user_email}, # 검색 조건: 이메일이 같은 문서 찾기
+            {"$set": final_result},     # 수정 내용: final_result 내용으로 덮어쓰기
+            upsert=True                 # 옵션: 없으면 새로 생성(Insert), 있으면 수정(Update)
+        )
         print(f"========== [SUCCESS] 분석 완료 (보정 적용됨): {latest_db_quarter} 사용 ==========\n")
 
     except Exception as e:
         print(f"\n!!! [CRITICAL ERROR] 분석 중 오류 발생 !!!: {e}")
         traceback.print_exc()
 
-# API 엔드포인트 추가 (기존 로직 사용)
+# API 엔드포인트
 @router.post("/run")
 def run_analysis_endpoint(user_email: str = Depends(get_current_user)):
     run_analysis(user_email)
