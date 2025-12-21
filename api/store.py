@@ -1,3 +1,5 @@
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, BackgroundTasks
+from core.security import get_current_user
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from core.security import get_current_user
 from core.config import store_collection
@@ -7,6 +9,7 @@ from schemas.aroundLocInfo import SurroundingSchema, Coordinate # 제공해주�
 from datetime import datetime
 import csv
 import io
+from analysis.compare import run_analysis
 import requests # Kakao용 (기존 유지)
 import httpx    # 공공데이터용 (신규 추가, 비동기 요청용)
 import asyncio  # 병렬 처리를 위해 추가
@@ -235,6 +238,8 @@ async def submit_store_info(
         {"$set": store_dict},         
         upsert=True                   
     )
+
+    run_analysis(current_user)
 
     if result.upserted_id:
         msg = "매장 정보가 신규 등록되었습니다."
