@@ -1,8 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, BackgroundTasks
 from core.security import get_current_user
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from core.security import get_current_user
-from core.config import store_collection
+from core.config import store_collection, surrounding_collection
 from core.config import KAKAO_API_KEY, DATA_GO_KR_API_KEY # 공공데이터 API 키 추가 필요
 from schemas.storeInfo import StoreInfoSchema
 from schemas.aroundLocInfo import SurroundingSchema, Coordinate # 제공해주신 스키마 임포트
@@ -229,7 +227,6 @@ async def submit_store_info(
     surrounding_data = await get_surrounding_commercial_areas(lat, lng)
 
     store_dict = store_data.dict()
-    store_dict["surrounding_info"] = surrounding_data.dict()
     store_dict["user_id"] = current_user  
     store_dict["updated_at"] = datetime.now()
 
@@ -237,6 +234,17 @@ async def submit_store_info(
         {"user_id": current_user},    
         {"$set": store_dict},         
         upsert=True                   
+    )
+
+    # B. 주변 상권 정보 (Surrounding Info) 별도 저장
+    surrounding_dict = surrounding_data.dict()
+    surrounding_dict["user_id"] = current_user
+    surrounding_dict["updated_at"] = datetime.now()
+
+    await surrounding_collection.update_one(
+        {"user_id": current_user},
+        {"$set": surrounding_dict},
+        upsert=True
     )
 
     run_analysis(current_user)
