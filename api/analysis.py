@@ -18,7 +18,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MARKET_CSV = os.path.join(BASE_DIR, "data_set", "서울상권_추정매출.csv")
 
 # 라우터 정의 (API 엔드포인트 등록용)
-router = APIRouter(prefix="/analysis", tags=["analysis"])
+router = APIRouter(prefix="/api/analysis", tags=["analysis"])
 
 def classify_percentile(ratio: float):
     if ratio >= 1.30: return ("TOP", "상위 10~15%")
