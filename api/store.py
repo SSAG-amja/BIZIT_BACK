@@ -1,17 +1,17 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from core.sercurity import get_current_user
 from core.config import store_collection
-from core.config import KAKAO_API_KEY
+from core.config import KAKAO_API_KEY, DATA_GO_KR_API_KEY # 공공데이터 API 키 추가 필요
 from schemas.sotreInfo import StoreInfoSchema
+from schemas.aroundLocInfo import SurroundingSchema, Coordinate # 제공해주신 스키마 임포트
 from datetime import datetime
 import csv
 import io
-import requests
+import requests # Kakao용 (기존 유지)
+import httpx    # 공공데이터용 (신규 추가, 비동기 요청용)
+import asyncio  # 병렬 처리를 위해 추가
 
 router = APIRouter(prefix="/api/store", tags=["Store"])
-
-import requests
-from fastapi import HTTPException
 
 async def get_coordinates(address: str):
     headers = {"Authorization": f"KakaoAK {KAKAO_API_KEY}"} 
@@ -21,7 +21,6 @@ async def get_coordinates(address: str):
     response = requests.get(url, headers=headers, params=params)
 
     if response.status_code != 200:
-        # 에러 로그 확인용
         print(f"Kakao API Error: {response.status_code}")
         print(response.text)
         raise HTTPException(status_code=500, detail="Kakao API 호출 실패")
@@ -52,6 +51,93 @@ async def get_coordinates(address: str):
 
     # 이제 4개의 값을 순서대로 반환합니다.
     return lat, lng, admin_code, dong_name
+
+
+# =================================================================
+# 공공데이터 상권 정보 가져오기 (비동기 병렬 처리)
+# =================================================================
+async def fetch_store_data_go_kr(lat: float, lng: float, radius: int) -> list[Coordinate]:
+    url = "http://apis.data.go.kr/B553077/api/open/sdsc2/storeListInRadius"
+    
+    from urllib.parse import unquote
+    service_key = unquote(DATA_GO_KR_API_KEY) 
+
+    params = {
+        "serviceKey": service_key, # 디코딩된 키 입력
+        "pageNo": 1,
+        "numOfRows": 500,
+        "radius": radius,
+        "cx": lng,   # 경도 (Longitude)
+        "cy": lat,   # 위도 (Latitude)
+        "indsSclsCd": "S21105",
+        "type": "json" # json 응답 요청
+    }
+
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url, params=params, timeout=15.0)
+            
+            if response.status_code != 200:
+                print(f"API Error ({radius}m): {response.status_code} - {response.text}")
+                return []
+
+            content_type = response.headers.get("Content-Type", "")
+            if "xml" in content_type or response.text.strip().startswith("<"):
+                print(f"API Error ({radius}m) - XML Response received (Check ServiceKey): {response.text[:200]}")
+                return []
+
+            data = response.json()
+            
+            body = data.get("body")
+            if not body:
+                print(f"API Error ({radius}m) - No 'body' in response: {data}")
+                return []
+
+            items = body.get("items")
+            
+            # items가 None이거나 비어있는 경우 처리
+            if not items:
+                return []
+
+            # 결과가 리스트가 아니라 단일 딕셔너리인 경우 리스트로 감싸기
+            if isinstance(items, dict):
+                items = [items]
+            
+            coords = []
+            for item in items:
+                try:
+                    c_lat = float(item.get("lat"))
+                    c_lon = float(item.get("lon"))
+                    coords.append(Coordinate(lat=c_lat, lng=c_lon))
+                except (ValueError, TypeError):
+                    continue
+            
+            return coords
+
+        except Exception as e:
+            print(f"Public Data API Exception ({radius}m): {str(e)}")
+            return []
+
+async def get_surrounding_commercial_areas(lat: float, lng: float) -> SurroundingSchema:
+    """
+    500m, 1000m, 1500m, 2000m 반경의 데이터 병렬 처리
+    """
+    # 4개의 비동기 작업을 생성
+    task_500 = fetch_store_data_go_kr(lat, lng, 500)
+    task_1000 = fetch_store_data_go_kr(lat, lng, 1000)
+    task_1500 = fetch_store_data_go_kr(lat, lng, 1500)
+    task_2000 = fetch_store_data_go_kr(lat, lng, 2000)
+
+    # 병렬 실행 및 결과 대기 (asyncio.gather 사용)
+    results = await asyncio.gather(task_500, task_1000, task_1500, task_2000)
+
+    return SurroundingSchema(
+        rad_500=results[0],
+        rad_1000=results[1],
+        rad_1500=results[2],
+        rad_2000=results[3]
+    )     
+
 
 # =================================================================
 # 1. CSV 파싱 API (매출 데이터 자동 채우기용)
@@ -137,7 +223,10 @@ async def submit_store_info(
     if not store_data.location.admin_dong_name:
         store_data.location.admin_dong_name = dong_name
 
+    surrounding_data = await get_surrounding_commercial_areas(lat, lng)
+
     store_dict = store_data.dict()
+    store_dict["surrounding_info"] = surrounding_data.dict()
     store_dict["user_id"] = current_user  
     store_dict["updated_at"] = datetime.now()
 
