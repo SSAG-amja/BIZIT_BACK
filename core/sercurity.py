@@ -3,7 +3,7 @@
 from fastapi import Depends, HTTPException, status, Header
 from core.config import user_collection
 
-def get_current_user(token: str = Header(..., description="사용자 인증 토큰")):
+async def get_current_user(token: str = Header(..., description="사용자 인증 토큰")):
 
     if not token:
         raise HTTPException(
@@ -15,7 +15,7 @@ def get_current_user(token: str = Header(..., description="사용자 인증 토�
     token = username으로 취급.
     """
 
-    user = users_collection.find_one({"user_email": token})
+    user = await users_collection.find_one({"user_email": token})
 
     if not user:
         raise HTTPException(
