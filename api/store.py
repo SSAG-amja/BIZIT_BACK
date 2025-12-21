@@ -1,10 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, BackgroundTasks
 from core.sercurity import get_current_user
 from core.config import store_collection
 from schemas.sotreInfo import StoreInfoSchema
 from datetime import datetime
 import csv
 import io
+from analysis.compare import run_analysis
 
 router = APIRouter(prefix="/api/store", tags=["Store"])
 
@@ -95,6 +96,8 @@ async def submit_store_info(
         {"$set": store_dict},         # 변경할 내용 ($set을 써야 전체 필드 업데이트)
         upsert=True                   # 없으면 insert_one 수행
     )
+
+    run_analysis(current_user)
 
     if result.upserted_id:
         msg = "매장 정보가 신규 등록되었습니다."
