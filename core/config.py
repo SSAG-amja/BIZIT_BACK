@@ -13,3 +13,4 @@ db = client["BIZIT_DB"]
 #collection 생성
 #나중에 쓸때는 await users_collection.function(...)
 user_collection = db["users"]
+store_collection = db['storeInfo']

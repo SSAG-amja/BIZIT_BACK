@@ -15,13 +15,12 @@ async def get_current_user(token: str = Header(..., description="사용자 인�
     token = username으로 취급.
     """
 
-    user = await users_collection.find_one({"user_email": token})
+    user = await user_collection.find_one({"user_email": token})
 
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token or user not found",
         )
-
 
     return token
