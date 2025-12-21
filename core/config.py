@@ -3,7 +3,6 @@ from dotenv import load_dotenv
 import os
 
 load_dotenv()
-
 MONGO_URL = os.getenv("MONGO_URL")
 
 #await 붙여야함- 비동기 실행
@@ -13,4 +12,4 @@ db = client["BIZIT_DB"]
 
 #collection 생성
 #나중에 쓸때는 await users_collection.function(...)
-users_collection = db["users"]
+user_collection = db["users"]
