@@ -264,7 +264,7 @@ async def save_solutions_to_db(user_id: str, generated_data: dict):
 # =================================================================
 # [Main] 메인 실행 함수 (★ 수정된 부분)
 # =================================================================
-async def func(user_id: str):
+async def run_sol(user_id: str):
     print(f"=== [Process Start] User: {user_id} ===")
     
     # 1. Store Info 가져오기
