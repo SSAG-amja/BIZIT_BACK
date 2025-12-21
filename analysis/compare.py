@@ -49,7 +49,7 @@ def run_analysis(user_email: str):
             print(f"!!! [ERROR] storeInfo 없음: {user_email}")
             return
 
-        sector_code = str(store["sector_code"])
+        sector_code = str(store["sector_code_cs"])
         admin_code = str(store["location"]["admin_code"])
 
         # 2. 내 매출 데이터

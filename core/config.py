@@ -4,6 +4,8 @@ import os
 
 load_dotenv()
 MONGO_URL = os.getenv("MONGO_URL")
+KAKAO_API_KEY = os.getenv("KAKAO_API")
+DATA_GO_KR_API_KEY = os.getenv("DATA_GO_KR_API_KEY")
 
 #await 붙여야함- 비동기 실행
 client = AsyncIOMotorClient(MONGO_URL)

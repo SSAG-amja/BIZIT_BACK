@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from core.sercurity import get_current_user
+from core.security import get_current_user
 from analysis.compare import run_analysis
 
 router = APIRouter(prefix="/analysis", tags=["analysis"])
