@@ -1,12 +1,57 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from core.sercurity import get_current_user
 from core.config import store_collection
+from core.config import KAKAO_API_KEY
 from schemas.sotreInfo import StoreInfoSchema
 from datetime import datetime
 import csv
 import io
+import requests
 
 router = APIRouter(prefix="/api/store", tags=["Store"])
+
+import requests
+from fastapi import HTTPException
+
+async def get_coordinates(address: str):
+    headers = {"Authorization": f"KakaoAK {KAKAO_API_KEY}"} 
+    url = 'https://dapi.kakao.com/v2/local/search/address.json'
+    params = {'query': address}
+
+    response = requests.get(url, headers=headers, params=params)
+
+    if response.status_code != 200:
+        # 에러 로그 확인용
+        print(f"Kakao API Error: {response.status_code}")
+        print(response.text)
+        raise HTTPException(status_code=500, detail="Kakao API 호출 실패")
+
+    result = response.json()
+
+    if not result.get('documents'):
+        raise HTTPException(status_code=404, detail="해당 주소를 찾을 수 없습니다.")
+
+    # 첫 번째 검색 결과 가져오기
+    match_first = result['documents'][0]
+    
+    # 좌표 추출
+    lat = float(match_first['y'])
+    lng = float(match_first['x'])
+
+    # 추가 정보 추출 (행정코드, 동 이름)
+    # address 객체가 있는 경우(지번 주소 정보)
+    if match_first.get('address'):
+        addr_info = match_first['address']
+        # h_code: 행정동 코드 / b_code: 법정동 코드 (필요에 따라 변경 가능)
+        admin_code = addr_info.get('h_code', '') 
+        dong_name = addr_info.get('region_3depth_name', '') # 예: 효자동
+    else:
+        # 도로명 주소만 있고 지번 매핑이 안 된 희귀 케이스 대비
+        admin_code = ""
+        dong_name = ""
+
+    # 이제 4개의 값을 순서대로 반환합니다.
+    return lat, lng, admin_code, dong_name
 
 # =================================================================
 # 1. CSV 파싱 API (매출 데이터 자동 채우기용)
@@ -76,24 +121,30 @@ async def submit_store_info(
     store_data: StoreInfoSchema,
     current_user: str = Depends(get_current_user)
 ):
-    """
-    사용자가 입력한(또는 CSV로 채워진) 최종 데이터를 에 저장합니다.
-    이미 등록된 매장이 있다면 업데이트(덮어쓰기) 합니다.
-    """
-    
-    # 1. Pydantic 모델을 dict로 변환
+    # 1. 주소를 좌표로 변환
+    address = store_data.location.address
+    lat, lng, admin_code, dong_name = await get_coordinates(address)
+
+    if lat is None:
+        raise HTTPException(status_code=400, detail="유효하지 않은 주소입니다. 주소를 다시 확인해주세요.")
+
+    # 2. 변환된 정보를 스키마 데이터에 주입
+    store_data.location.lat = lat
+    store_data.location.lng = lng
+
+    if not store_data.location.admin_code:
+        store_data.location.admin_code = admin_code
+    if not store_data.location.admin_dong_name:
+        store_data.location.admin_dong_name = dong_name
+
     store_dict = store_data.dict()
-    
-    # 2. 시스템 관리 필드 추가
-    store_dict["user_id"] = current_user  # 토큰에서 추출한 사용자 ID
+    store_dict["user_id"] = current_user  
     store_dict["updated_at"] = datetime.now()
 
-    # 3. DB 저장 (Upsert: 없으면 생성, 있으면 수정)
-    # user_id를 기준으로 매장을 찾습니다.
     result = await store_collection.update_one(
-        {"user_id": current_user},    # 검색 조건
-        {"$set": store_dict},         # 변경할 내용 ($set을 써야 전체 필드 업데이트)
-        upsert=True                   # 없으면 insert_one 수행
+        {"user_id": current_user},    
+        {"$set": store_dict},         
+        upsert=True                   
     )
 
     if result.upserted_id:
@@ -111,9 +162,6 @@ async def submit_store_info(
 async def get_my_store_info(
     current_user: str = Depends(get_current_user)
 ):
-    """
-    로그인한 사용자의 저장된 매장 정보를 불러옵니다.
-    """
     store = await store_collection.find_one(
         {"user_id": current_user},
         {"_id": 0} # _id 필드는 제외하고 반환 (JSON 직렬화 문제 방지)

@@ -6,11 +6,17 @@ from typing import List, Optional
 
 # 2. 위치 정보
 class LocationSchema(BaseModel):
-    lat: float = Field(..., description="위도")
-    lng: float = Field(..., description="경도")
-    admin_code: str = Field(..., description="행정동 코드 (ex: 1111053000)")
-    admin_dong_name: str = Field(..., description="행정동 이름 (ex: 사직동)")
+    address: str = Field(..., description="도로명 주소 또는 지번 주소", example="서울 종로구 사직로 161")
+    detail_address: Optional[str] = Field(None, description="상세 주소 (층, 호수 등)")
 
+    # [입력 불필요] 아래는 프론트에서 안 보내도 됨 (서버가 채움) -> Optional 처리
+    lat: Optional[float] = Field(None, description="위도 (서버 자동 생성)")
+    lng: Optional[float] = Field(None, description="경도 (서버 자동 생성)")
+    
+    # 행정동 정보도 주소 API 등을 통해 프론트에서 받거나, 서버에서 채울 수 있음
+    admin_code: Optional[str] = Field(None, description="행정동 코드")
+    admin_dong_name: Optional[str] = Field(None, description="행정동 이름")
+    
 # 3. 매출 상세 내역 (Weekly, Time, Gender, Age)
 class WeeklySales(BaseModel):
     mon: Optional[int] = 0
