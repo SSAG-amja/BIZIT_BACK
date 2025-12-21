@@ -1,8 +1,8 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
-from core.sercurity import get_current_user
+from core.security import get_current_user
 from core.config import store_collection
 from core.config import KAKAO_API_KEY, DATA_GO_KR_API_KEY # 공공데이터 API 키 추가 필요
-from schemas.sotreInfo import StoreInfoSchema
+from schemas.storeInfo import StoreInfoSchema
 from schemas.aroundLocInfo import SurroundingSchema, Coordinate # 제공해주신 스키마 임포트
 from datetime import datetime
 import csv
