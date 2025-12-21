@@ -31,7 +31,7 @@ async def get_coordinates(address: str):
 
     if not result.get('documents'):
         raise HTTPException(status_code=404, detail="해당 주소를 찾을 수 없습니다.")
-
+    
     # 첫 번째 검색 결과 가져오기
     match_first = result['documents'][0]
     
@@ -44,7 +44,8 @@ async def get_coordinates(address: str):
     if match_first.get('address'):
         addr_info = match_first['address']
         # h_code: 행정동 코드 / b_code: 법정동 코드 (필요에 따라 변경 가능)
-        admin_code = addr_info.get('h_code', '') 
+        raw_code = addr_info.get('h_code', '') 
+        admin_code = raw_code[:-2] if len(raw_code) >= 2 else raw_code
         dong_name = addr_info.get('region_3depth_name', '') # 예: 효자동
     else:
         # 도로명 주소만 있고 지번 매핑이 안 된 희귀 케이스 대비
@@ -220,10 +221,8 @@ async def submit_store_info(
     store_data.location.lat = lat
     store_data.location.lng = lng
 
-    if not store_data.location.admin_code:
-        store_data.location.admin_code = admin_code
-    if not store_data.location.admin_dong_name:
-        store_data.location.admin_dong_name = dong_name
+    store_data.location.admin_code = admin_code
+    store_data.location.admin_dong_name = dong_name
 
     surrounding_data = await get_surrounding_commercial_areas(lat, lng)
 
