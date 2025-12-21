@@ -1,7 +1,7 @@
 # main.py
 from fastapi import FastAPI
-#from api.analysis import router as analysis_router
 from api.user import router as user_router
+from api.store import router as store_router
 #from api.data import router as data_router
 #from api.solution import router as solution_router
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,7 +13,7 @@ app = FastAPI(
 
 #라우터 등록
 app.include_router(user_router)
-#app.include_router(analysis_router)
+app.include_router(store_router)
 #app.include_router(data_router)
 #app.include_router(solution_router)
 
