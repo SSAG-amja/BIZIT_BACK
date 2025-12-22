@@ -1,24 +1,13 @@
-# Web Framework
 fastapi
 uvicorn[standard]
-
-# Database
 pymongo
 motor
 python-dotenv
-
-# Data Processing
 pandas
-
-# HTTP Client
 requests
 httpx
-
-# Security & Validation
-pydantic[email]
 python-multipart
+gunicorn
+pydantic[email]
 python-jose[cryptography]
 passlib[bcrypt]
-
-# Production Server (Railway 추천)
-gunicorn
