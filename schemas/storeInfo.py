@@ -133,18 +133,11 @@ class Goals(BaseModel):
 # 전체 매장 정보 스키마
 class StoreInfoSchema(BaseModel):
     # 1. 업종 정보
-<<<<<<< HEAD
     sector_name: str = Field(..., description="업종 명칭")
 
     sector_code: Optional[str] = Field(None,description="KSIC 코드")
     sector_code_cs: Optional[str] = Field(None, description="서비스 업종 코드")
     sector_code_low: Optional[str] = Field(None, description="업종 소분류 코드")
-=======
-    sector_code: str = Field(..., description="KSIC 코드")
-    sector_name: str = Field(..., description="업종 명칭(소분류)")
-    sector_code_cs: str = Field(..., description="서비스 업종 코드")
-    sector_code_low: str = Field(..., description="업종 소분류 코드")
->>>>>>> 1811cd2cf40db89ae67914bdc8c539bf72025ec0
 
     # 2. 위치
     location: LocationSchema
