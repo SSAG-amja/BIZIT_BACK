@@ -290,7 +290,7 @@ async def get_dashboard_data(
     loc = store["location"]
     lat = loc.get("lat")
     lng = loc.get("lng")
-
+    address = loc.get("address")
     my_cordinate = {
         "lat": float(lat),
         "lng": float(lng),
@@ -379,7 +379,8 @@ async def get_dashboard_data(
         # [13] 솔루션 제목
         "solution_titles": solution_titles,
         # [14] 솔루션 전체
-        "solutions": solution_full
+        "solutions": solution_full,
+        "my_address": address
     }
 
     return {
