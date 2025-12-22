@@ -285,6 +285,15 @@ async def get_dashboard_data(
             "data": None
         }
 
+    loc = store["location"]
+    lat = loc.get("lat")
+    lng = loc.get("lng")
+
+    my_cordinate = {
+        "lat": float(lat),
+        "lng": float(lng),
+    }
+
     # 2. 분석 정보 (AnalysisInfo) 조회
     analysis = await analysis_collection.find_one({"user_email": current_user})
     
@@ -341,6 +350,8 @@ async def get_dashboard_data(
     ]
 
     dashboard_data = {
+        # [0] 내 위치
+        "my_coordinate" : my_cordinate,
         # [1] 등급 라벨
         "percentile_label": analysis.get("percentile", {}).get("label", ""),
         # [2] 내 최신 매출
