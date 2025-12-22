@@ -7,6 +7,9 @@ MONGO_URL = os.getenv("MONGO_URL")
 KAKAO_API_KEY = os.getenv("KAKAO_API")
 DATA_GO_KR_API_KEY = os.getenv("DATA_GO_KR_API_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM= os.getenv("ALGORITHM")
+ACCESS_TOKEN_EXPIRE_MINUTES = os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES")
 
 #await 붙여야함- 비동기 실행
 client = AsyncIOMotorClient(MONGO_URL)
