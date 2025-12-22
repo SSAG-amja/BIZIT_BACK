@@ -12,11 +12,11 @@ class LocationSchema(BaseModel):
     # [입력 불필요] 아래는 프론트에서 안 보내도 됨 (서버가 채움) -> Optional 처리
     lat: Optional[float] = Field(None, description="위도 (서버 자동 생성)")
     lng: Optional[float] = Field(None, description="경도 (서버 자동 생성)")
-    
+
     # 행정동 정보도 주소 API 등을 통해 프론트에서 받거나, 서버에서 채울 수 있음
     admin_code: Optional[str] = Field(None, description="행정동 코드")
     admin_dong_name: Optional[str] = Field(None, description="행정동 이름")
-    
+
 # 3. 매출 상세 내역 (Weekly, Time, Gender, Age)
 class WeeklySales(BaseModel):
     mon: Optional[int] = 0
@@ -133,10 +133,11 @@ class Goals(BaseModel):
 # 전체 매장 정보 스키마
 class StoreInfoSchema(BaseModel):
     # 1. 업종 정보
-    sector_code: str = Field(..., description="KSIC 코드")
     sector_name: str = Field(..., description="업종 명칭")
-    sector_code_cs: str = Field(..., description="서비스 업종 코드")
-    sector_code_low: str = Field(..., description="업종 소분류 코드")
+
+    sector_code: Optional[str] = Field(None,description="KSIC 코드")
+    sector_code_cs: Optional[str] = Field(None, description="서비스 업종 코드")
+    sector_code_low: Optional[str] = Field(None, description="업종 소분류 코드")
 
     # 2. 위치
     location: LocationSchema
