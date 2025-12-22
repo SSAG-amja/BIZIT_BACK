@@ -17,8 +17,9 @@ router = APIRouter(prefix="/api/solution", tags=["Solution"])
 @router.get("/list")
 async def get_my_solutions(current_user: str = Depends(get_current_user)): 
     projection = {"title": 1, "solution": 1, "_id": 0}
+    # 최신순 정렬
     cursor = solution_collection.find({"user_id": current_user}, projection).sort("created_at", -1)
-    return await cursor.to_list(length=5)
+    return await cursor.to_list(length=20)
 
 # =================================================================
 # [Helper] 검색 조건 추출
@@ -143,7 +144,6 @@ async def request_llm_generation(final_context: dict):
     ]
     """
 
-    # ▼▼▼ [수정된 부분] json.dumps에 default=str 옵션 추가 (datetime 오류 해결) ▼▼▼
     user_prompt_text = f"""
     아래 데이터를 분석해줘.
 
@@ -159,7 +159,6 @@ async def request_llm_generation(final_context: dict):
     [4. 상권 추정 매출 데이터 (CSV)]
     {sales_str}
     """
-    # ▲▲▲ [수정 완료] ▲▲▲
 
     # 4. Gemini REST API 호출
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={GEMINI_API_KEY}"
@@ -233,27 +232,25 @@ async def request_llm_generation(final_context: dict):
         }
     
 # =================================================================
-# [Step 4] DB 저장 함수 (SolutionSchema 적용 버전)
+# [Step 4] DB 저장 함수 (덮어쓰기 로직 적용)
 # =================================================================
 async def save_solutions_to_db(user_id: str, generated_data: dict):
+    # 생성된 데이터가 없으면 아무것도 하지 않음 (기존 데이터 보존)
     if not generated_data: return
 
     titles = generated_data.get("title", [])
     solutions = generated_data.get("solution", [])
     
-    # 1. 5개 유지 로직
-    cursor = solution_collection.find({"user_id": user_id}).sort("created_at", 1)
-    existing_solutions = await cursor.to_list(length=100)
-    
-    if len(existing_solutions) + len(titles) > 5:
-        delete_count = (len(existing_solutions) + len(titles)) - 5
-        ids_to_delete = [doc["_id"] for doc in existing_solutions[:delete_count]]
-        if ids_to_delete:
-            await solution_collection.delete_many({"_id": {"$in": ids_to_delete}})
+    # 데이터가 비어있으면 저장 안 함
+    if not titles: return
 
-    # 2. 저장
-    for t, s in zip(titles, solutions):
-        try:
+    try:
+        # ▼▼▼ [수정됨] 기존 데이터 모두 삭제 (덮어쓰기) ▼▼▼
+        # user_id에 해당하는 기존 솔루션을 전부 삭제합니다.
+        await solution_collection.delete_many({"user_id": user_id})
+        
+        # 2. 새로운 데이터 저장
+        for t, s in zip(titles, solutions):
             solution_data = SolutionSchema(title=t, solution=s)
             doc = solution_data.model_dump() 
             doc["user_id"] = user_id
@@ -261,11 +258,10 @@ async def save_solutions_to_db(user_id: str, generated_data: dict):
             
             await solution_collection.insert_one(doc)
             
-        except Exception as e:
-            print(f"!! 데이터 저장 중 스키마 오류 발생: {e}")
-
-    print(f"솔루션 저장 완료")
-
+        print(f"솔루션 저장 완료 (기존 데이터 삭제 후 갱신)")
+        
+    except Exception as e:
+        print(f"!! 데이터 저장 중 오류 발생: {e}")
 
 # =================================================================
 # [Main] 메인 실행 함수
