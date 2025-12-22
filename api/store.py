@@ -1,6 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, BackgroundTasks
 from core.security import get_current_user
-from core.config import store_collection, surrounding_collection
+from core.config import store_collection, surrounding_collection, surrounding_collection, code_mapping_collection
 from core.config import KAKAO_API_KEY, DATA_GO_KR_API_KEY # 공공데이터 API 키 추가 필요
 from schemas.storeInfo import StoreInfoSchema
 from schemas.aroundLocInfo import SurroundingSchema, Coordinate # 제공해주신 스키마 임포트
@@ -208,8 +208,38 @@ async def parse_store_csv(
 @router.post("/submit")
 async def submit_store_info(
     store_data: StoreInfoSchema,
+    background_tasks: BackgroundTasks,
     current_user: str = Depends(get_current_user)
 ):
+    if store_data.sector_name:
+        # ksic_list 배열 안에 name이 일치하는 문서 찾기
+        mapping_doc = await code_mapping_collection.find_one(
+            {"ksic_list.name": store_data.sector_name}
+        )
+
+        if mapping_doc:
+            # 1) CS 코드와 SO 코드(Low) 매핑
+            store_data.sector_code_cs = mapping_doc.get("code_cs", "")
+            store_data.sector_code_low = mapping_doc.get("so_code", "")
+            
+            # 2) 표준산업분류(KSIC) 코드 매핑 (리스트 순회)
+            ksic_list = mapping_doc.get("ksic_list", [])
+            for ksic in ksic_list:
+                if ksic.get("name") == store_data.sector_name:
+                    store_data.sector_code = ksic.get("code", "")
+                    break
+        else:
+            # 매핑 데이터가 없는 경우:
+            # 1. 에러를 띄울지, 
+            # 2. 그냥 입력받은 값(빈값 등)을 쓸지 결정해야 합니다.
+            # 여기서는 안전하게 에러를 띄워 잘못된 업종명 입력을 방지하는 것을 추천합니다.
+            raise HTTPException(
+                status_code=400, 
+                detail=f"지원하지 않는 업종명입니다: {store_data.sector_name}"
+            )
+    # ▲▲▲ [로직 종료] ▲▲▲
+
+    
     # 1. 주소를 좌표로 변환
     address = store_data.location.address
     lat, lng, admin_code, dong_name = await get_coordinates(address)
@@ -248,7 +278,7 @@ async def submit_store_info(
     )
 
     run_analysis(current_user)
-    run_sol(result)
+    background_tasks.add_task(run_sol, current_user)
 
     if result.upserted_id:
         msg = "매장 정보가 신규 등록되었습니다."
