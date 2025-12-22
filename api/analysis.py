@@ -7,6 +7,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends
 from core.security import get_current_user
 from core.config import store_collection, analysis_collection
+import asyncio
+
+
 # .env 파일 로드
 load_dotenv()
 
@@ -34,12 +37,12 @@ def ym_to_quarter_code(ym: str) -> str:
     else: q = "4"
     return f"{year}{q}"
 
-def run_analysis(user_email: str):
+async def run_analysis(user_email: str):
     print(f"\n========== [DEBUG] 분석 시작: {user_email} ==========")
     
     try:
         # 1. storeInfo 조회
-        store = store_collection.find_one({"user_id": user_email})
+        store = await store_collection.find_one({"user_id": user_email})
         if not store:
             print(f"!!! [ERROR] storeInfo 없음: {user_email}")
             return
@@ -173,7 +176,7 @@ def run_analysis(user_email: str):
         }
 
         # ▼▼▼ [수정된 부분] insert_one 대신 update_one(upsert=True) 사용 ▼▼▼
-        db.analysisInfo.update_one(
+        await analysis_collection.update_one(
             {"user_email": user_email}, # 검색 조건: 이메일이 같은 문서 찾기
             {"$set": final_result},     # 수정 내용: final_result 내용으로 덮어쓰기
             upsert=True                 # 옵션: 없으면 새로 생성(Insert), 있으면 수정(Update)

@@ -235,9 +235,9 @@ async def submit_store_info(
     )
 
     # 5. 분석 실행
-    run_analysis(current_user) # 동기 실행
+    background_tasks.add_task(run_analysis, current_user)
     background_tasks.add_task(run_sol, current_user) # 비동기 백그라운드 실행
-
+    
     if result.upserted_id:
         msg = "매장 정보가 신규 등록되었습니다."
     else:
