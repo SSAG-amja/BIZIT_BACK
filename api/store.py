@@ -211,7 +211,9 @@ async def submit_store_info(
 
     # 2. 주변 상권 정보
     surrounding_data = await get_surrounding_commercial_areas(lat, lng)
-
+    
+    await analysis_collection.delete_one({"user_email": current_user})
+    await solution_collection.delete_many({"user_id": current_user})
     # 3. DB 저장 (Store Info)
     store_dict = store_data.dict()
     store_dict["user_id"] = current_user  
@@ -296,8 +298,6 @@ async def get_dashboard_data(
 
     # 2. 분석 정보 (AnalysisInfo) 조회
     analysis = await analysis_collection.find_one({"user_email": current_user})
-    
-    # 3. 주변 상권 정보 (SurroundingInfo) 조회
     surrounding = await surrounding_collection.find_one({"user_id": current_user})
 
     # 4. 솔루션 정보 (SolutionInfo) 조회 - 최신순 정렬
@@ -305,9 +305,9 @@ async def get_dashboard_data(
     solutions_list = await solutions_cursor.to_list(length=20) 
 
     # 분석 데이터가 없으면 '분석 중' 상태로 간주 가능
-    if not analysis:
+    if not analysis or not solutions_list:
         return {
-            "hasData": True,
+            "hasData": False,
             "isAnalyzing": True,
             "message": "분석 데이터가 아직 생성되지 않았습니다.",
             "data": None
