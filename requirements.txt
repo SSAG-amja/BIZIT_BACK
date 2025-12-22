@@ -22,4 +22,3 @@ passlib[bcrypt]
 
 # Production Server (Railway 추천)
 gunicorn
-freeze
