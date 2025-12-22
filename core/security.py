@@ -1,26 +1,28 @@
-#인증, JWT 로직 등
-# security.py
 from fastapi import Depends, HTTPException, status, Header
+from fastapi.security import OAuth2PasswordBearer
 from core.config import user_collection
+from jose import jwt, JWTError
+from core.auth_utils import SECRET_KEY, ALGORITHM
 
-async def get_current_user(token: str = Header(..., description="사용자 인증 토큰")):
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/user/signin")
 
-    if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token header missing"
-        )
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="인증 정보가 유효하지 않습니다.",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        # 1. 토큰 디코딩
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_email: str = payload.get("sub")
+        if user_email is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
 
-    """
-    token = username으로 취급.
-    """
+    user = await user_collection.find_one({"user_email": user_email})
+    if user is None:
+        raise credentials_exception
 
-    user = await user_collection.find_one({"user_email": token})
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid token or user not found",
-        )
-
-    return token
+    return user_email
