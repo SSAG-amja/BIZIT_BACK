@@ -4,6 +4,7 @@ from api.user import router as user_router
 from api.store import router as store_router
 from api.analysis import router as analysis_router
 from api.solution import router as solution_router
+from api.chat import router as chat_router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
@@ -16,6 +17,7 @@ app.include_router(user_router)
 app.include_router(store_router)
 app.include_router(analysis_router)
 app.include_router(solution_router)
+app.include_router(chat_router)
 
 #프론트엔드 통신
 app.add_middleware(
