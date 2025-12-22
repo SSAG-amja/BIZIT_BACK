@@ -134,7 +134,7 @@ class Goals(BaseModel):
 class StoreInfoSchema(BaseModel):
     # 1. 업종 정보
     sector_code: str = Field(..., description="KSIC 코드")
-    sector_name: str = Field(..., description="업종 명칭")
+    sector_name: str = Field(..., description="업종 명칭(소분류)")
     sector_code_cs: str = Field(..., description="서비스 업종 코드")
     sector_code_low: str = Field(..., description="업종 소분류 코드")
 
