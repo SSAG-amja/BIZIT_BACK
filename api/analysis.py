@@ -6,12 +6,9 @@ from pymongo import MongoClient
 from datetime import datetime
 from fastapi import APIRouter, Depends
 from core.security import get_current_user
-
+from core.config import store_collection, analysis_collection
 # .env 파일 로드
 load_dotenv()
-
-MONGO_URI = os.getenv("MONGO_URL")
-DB_NAME = "BIZIT_DB"
 
 # 파일 경로 절대 경로로 설정
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,11 +38,8 @@ def run_analysis(user_email: str):
     print(f"\n========== [DEBUG] 분석 시작: {user_email} ==========")
     
     try:
-        client = MongoClient(MONGO_URI)
-        db = client[DB_NAME]
-
         # 1. storeInfo 조회
-        store = db.storeInfo.find_one({"user_id": user_email})
+        store = store_collection.find_one({"user_id": user_email})
         if not store:
             print(f"!!! [ERROR] storeInfo 없음: {user_email}")
             return

@@ -1,7 +1,6 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status, BackgroundTasks
 from core.security import get_current_user
-# ▼▼▼ [수정 1] solution_collection, db 추가 import ▼▼▼
-from core.config import store_collection, surrounding_collection, code_mapping_collection, solution_collection, db
+from core.config import store_collection, surrounding_collection, code_mapping_collection, solution_collection, analysis_collection
 from core.config import KAKAO_API_KEY, DATA_GO_KR_API_KEY
 from schemas.storeInfo import StoreInfoSchema
 from schemas.aroundLocInfo import SurroundingSchema, Coordinate
@@ -268,7 +267,6 @@ async def get_my_store_info(
 # =================================================================
 # 4. [NEW] 대시보드 데이터 통합 조회 API (Dashboard)
 # =================================================================
-# ▼▼▼ [수정 2] 대시보드 API 추가 ▼▼▼
 @router.get("/dashboard")
 async def get_dashboard_data(
     current_user: str = Depends(get_current_user)
@@ -288,8 +286,7 @@ async def get_dashboard_data(
         }
 
     # 2. 분석 정보 (AnalysisInfo) 조회
-    # analysis.py는 db['analysisInfo']에 저장하도록 수정했으므로 여기서 가져옵니다.
-    analysis = await db.analysisInfo.find_one({"user_email": current_user})
+    analysis = await analysis_collection.find_one({"user_email": current_user})
     
     # 3. 주변 상권 정보 (SurroundingInfo) 조회
     surrounding = await surrounding_collection.find_one({"user_id": current_user})
@@ -310,16 +307,31 @@ async def get_dashboard_data(
     # === 데이터 가공 ===
     
     # [12] 주변 상권 좌표 추출
-    surrounding_coords = []
+    surrounding_coords = {
+        "500": [],
+        "1000": [],
+        "1500": [],
+        "2000": []
+    }
     if surrounding:
-        for rad_key in ["rad_500", "rad_1000", "rad_1500", "rad_2000"]:
-            items = surrounding.get(rad_key, [])
-            for item in items:
-                if "lat" in item and "lng" in item:
-                    surrounding_coords.append({
-                        "lat": item["lat"],
-                        "lng": item["lng"]
-                    })
+
+        radius_map = {
+            "rad_500": "500",
+            "rad_1000": "1000",
+            "rad_1500": "1500",
+            "rad_2000": "2000"
+        }
+
+        for db_key, out_key in radius_map.items():
+            items = surrounding.get(db_key, [])
+            if items:
+                for item in items:
+                    # 필수 데이터인 위경도가 있는 경우만 추가
+                    if "lat" in item and "lng" in item:
+                        surrounding_coords[out_key].append({
+                            "lat": item["lat"],
+                            "lng": item["lng"],
+                            })
 
     # [13, 14] 솔루션 추출
     solution_titles = [sol.get("title", "") for sol in solutions_list]
