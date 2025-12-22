@@ -105,27 +105,19 @@ async def request_llm_generation(final_context: dict):
             "title": ["API 키 설정 필요"],
             "solution": ["환경 변수 또는 설정 파일에서 GEMINI_API_KEY를 확인해주세요."]
         }
-    # -------------------------------------------------------------
-    # 1. 사용할 모델 설정 (여기서 3.0이나 2.5로 변경 가능)
-    # -------------------------------------------------------------
+    
     MODEL_NAME = "gemini-2.5-flash"
 
-    # -------------------------------------------------------------
-    # 2. 데이터 최적화 (Pandas 활용)
-    # -------------------------------------------------------------
+    # 2. 데이터 최적화
     market_data = final_context.get("market_data", {})
     
-    # 유동인구 데이터 -> CSV 문자열
     pop_list = market_data.get("population", [])
     pop_str = pd.DataFrame(pop_list).to_csv(index=False) if pop_list else "데이터 없음"
 
-    # 매출 데이터 -> CSV 문자열
     sales_list = market_data.get("sales_estimate", [])
     sales_str = pd.DataFrame(sales_list).to_csv(index=False) if sales_list else "데이터 없음"
 
-    # -------------------------------------------------------------
-    # 3. 프롬프트 구성 (★ 수정됨: 용어 순화 규칙 추가)
-    # -------------------------------------------------------------
+    # 3. 프롬프트 구성
     system_instruction_text = """
     당신은 소상공인 상권 분석 전문가입니다.
     제공된 데이터를 바탕으로 매출 상승을 위한 구체적인 전략을 3~5가지 제안하세요.
@@ -151,14 +143,15 @@ async def request_llm_generation(final_context: dict):
     ]
     """
 
+    # ▼▼▼ [수정된 부분] json.dumps에 default=str 옵션 추가 (datetime 오류 해결) ▼▼▼
     user_prompt_text = f"""
     아래 데이터를 분석해줘.
 
     [1. 매장 정보]
-    {json.dumps(final_context['store_info'], ensure_ascii=False, indent=2)}
+    {json.dumps(final_context['store_info'], ensure_ascii=False, indent=2, default=str)}
 
     [2. 주변 상권 밀집도 (반경별 상가 수)]
-    {json.dumps(final_context['surrounding_location'], ensure_ascii=False)}
+    {json.dumps(final_context['surrounding_location'], ensure_ascii=False, indent=2, default=str)}
 
     [3. 상권 유동인구 데이터 (CSV)]
     {pop_str}
@@ -166,12 +159,11 @@ async def request_llm_generation(final_context: dict):
     [4. 상권 추정 매출 데이터 (CSV)]
     {sales_str}
     """
+    # ▲▲▲ [수정 완료] ▲▲▲
 
-    # -------------------------------------------------------------
-    # 4. Gemini REST API 호출 (requests 사용)
-    # -------------------------------------------------------------
+    # 4. Gemini REST API 호출
     url = f"https://generativelanguage.googleapis.com/v1beta/models/{MODEL_NAME}:generateContent?key={GEMINI_API_KEY}"
-    
+
     headers = {
         "Content-Type": "application/json"
     }
@@ -184,16 +176,14 @@ async def request_llm_generation(final_context: dict):
             "parts": [{"text": user_prompt_text}]
         }],
         "generationConfig": {
-            "responseMimeType": "application/json"  # JSON 응답 강제
+            "responseMimeType": "application/json"
         }
     }
 
-    # requests는 동기 함수이므로, FastAPI 서버가 멈추지 않도록 별도 스레드에서 실행
     def _send_request():
         try:
-            # json=payload를 쓰면 자동으로 dumps 처리 및 Content-Type 설정됨
             response = requests.post(url, headers=headers, json=payload)
-            response.raise_for_status() # 4xx, 5xx 에러 시 예외 발생
+            response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
             print(f"!! Requests 요청 오류: {e}")
@@ -201,23 +191,16 @@ async def request_llm_generation(final_context: dict):
                 print(f"   서버 응답: {e.response.text}")
             return None
 
-    # 비동기 실행 (asyncio.to_thread)
+    # 비동기 실행
     response_json = await asyncio.to_thread(_send_request)
 
-    # -------------------------------------------------------------
     # 5. 결과 파싱
-    # -------------------------------------------------------------
     if response_json and "candidates" in response_json:
         try:
             content_text = response_json["candidates"][0]["content"]["parts"][0]["text"]
-            
-            # Markdown 백틱 제거 및 파싱
             cleaned_text = content_text.replace("```json", "").replace("```", "").strip()
-            
-            # AI가 준 [{}, {}] 형태의 리스트 파싱
             result_list = json.loads(cleaned_text)
             
-            # DB 저장 함수 형식에 맞춰서 분리
             titles = []
             solutions = []
             
@@ -226,7 +209,6 @@ async def request_llm_generation(final_context: dict):
                     titles.append(item.get("title", "제목 없음"))
                     solutions.append(item.get("solution", "내용 없음"))
             elif isinstance(result_list, dict):
-                # 단일 객체일 경우 처리
                 titles.append(result_list.get("title", "제목 없음"))
                 solutions.append(result_list.get("solution", "내용 없음"))
             
@@ -259,7 +241,7 @@ async def save_solutions_to_db(user_id: str, generated_data: dict):
     titles = generated_data.get("title", [])
     solutions = generated_data.get("solution", [])
     
-    # 1. 5개 유지 로직 (오래된 것 삭제)
+    # 1. 5개 유지 로직
     cursor = solution_collection.find({"user_id": user_id}).sort("created_at", 1)
     existing_solutions = await cursor.to_list(length=100)
     
@@ -269,32 +251,24 @@ async def save_solutions_to_db(user_id: str, generated_data: dict):
         if ids_to_delete:
             await solution_collection.delete_many({"_id": {"$in": ids_to_delete}})
 
-    # 2. 스키마 검증 및 데이터 저장
+    # 2. 저장
     for t, s in zip(titles, solutions):
         try:
-            # (1) Pydantic 스키마로 데이터 유효성 검증 (문자열인지, 길이 맞는지 등)
             solution_data = SolutionSchema(title=t, solution=s)
-            
-            # (2) 검증된 데이터를 딕셔너리로 변환
-            # Pydantic V2: model_dump(), V1: dict()
             doc = solution_data.model_dump() 
-            
-            # (3) 스키마에 없는 시스템 필드(user_id, 날짜) 수동 추가
             doc["user_id"] = user_id
             doc["created_at"] = datetime.now()
             
-            # (4) DB 저장
             await solution_collection.insert_one(doc)
             
         except Exception as e:
             print(f"!! 데이터 저장 중 스키마 오류 발생: {e}")
-            # 스키마 조건(min_length 등)에 안 맞으면 저장을 건너뜀
 
     print(f"솔루션 저장 완료")
 
 
 # =================================================================
-# [Main] 메인 실행 함수 (★ 수정된 부분)
+# [Main] 메인 실행 함수
 # =================================================================
 async def run_sol(user_id: str):
     print(f"=== [Process Start] User: {user_id} ===")
@@ -306,12 +280,11 @@ async def run_sol(user_id: str):
         return 0
     if "_id" in store_doc: del store_doc["_id"]
 
-    # 2. Surrounding Info 가져와서 [★바로 개수 세기★]
+    # 2. Surrounding Info 가져와서 개수 세기
     surrounding_data = await surrounding_collection.find_one({"user_id": user_id})
     if not surrounding_data:
         surrounding_data = {}
     
-    # 여기서 리스트 길이(len)만 저장 -> final_context가 아주 가벼워짐
     surrounding_summary = {
         "rad_500": len(surrounding_data.get("rad_500", [])),
         "rad_1000": len(surrounding_data.get("rad_1000", [])),
@@ -330,10 +303,10 @@ async def run_sol(user_id: str):
         csv1_data = get_population_data(CSV1_PATH, admin_code, quarters_list)
         csv2_data = get_sales_data(CSV2_PATH, admin_code, sector_code, quarters_list)
 
-    # 4. 통합 JSON 생성 (이미 정제된 데이터들)
+    # 4. 통합 JSON 생성
     final_context = {
         "store_info": store_doc,
-        "surrounding_location": surrounding_summary, # 개수 정보만 담김
+        "surrounding_location": surrounding_summary,
         "market_data": {
             "population": csv1_data,       
             "sales_estimate": csv2_data    
