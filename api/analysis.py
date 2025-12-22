@@ -109,14 +109,14 @@ async def run_analysis(user_email: str):
             (market_df["서비스_업종_코드"] == sector_code) &
             (market_df["기준_년분기_코드"].isin(adjusted_quarters))
         ]
-        quarter_avg_all_map = industry_all_df.groupby("기준_년분기_코드")["당월_매출_금액"].mean().to_dict()
+        quarter_avg_all_map = industry_all_df.groupby("기준_년분기_코드")["당월_평균_매출"].mean().to_dict()
 
         industry_dong_df = market_df[
             (market_df["서비스_업종_코드"] == sector_code) &
             (market_df["행정동_코드"] == admin_code) &
             (market_df["기준_년분기_코드"].isin(adjusted_quarters))
         ]
-        quarter_avg_dong_map = industry_dong_df.groupby("기준_년분기_코드")["당월_매출_금액"].mean().to_dict()
+        quarter_avg_dong_map = industry_dong_df.groupby("기준_년분기_코드")["당월_평균_매출"].mean().to_dict()
 
         # C. 그래프용 리스트 생성
         industry_trend_all = []
