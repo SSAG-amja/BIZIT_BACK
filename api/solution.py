@@ -124,18 +124,31 @@ async def request_llm_generation(final_context: dict):
     sales_str = pd.DataFrame(sales_list).to_csv(index=False) if sales_list else "데이터 없음"
 
     # -------------------------------------------------------------
-    # 3. 프롬프트 구성
+    # 3. 프롬프트 구성 (★ 수정됨: 용어 순화 규칙 추가)
     # -------------------------------------------------------------
     system_instruction_text = """
     당신은 소상공인 상권 분석 전문가입니다.
-    제공된 [매장 정보], [주변 상권 밀집도], [유동인구/매출 데이터]를 종합적으로 분석하여
-    매출 상승을 위한 구체적인 솔루션을 제안해주세요.
+    제공된 데이터를 바탕으로 매출 상승을 위한 구체적인 전략을 3~5가지 제안하세요.
 
-    [중요] 응답은 반드시 아래 JSON 포맷을 준수해야 하며, Markdown 코드 블록(```json) 없이 순수 JSON 텍스트만 반환하세요.
-    {
-        "title": ["전략 제목1", "전략 제목2"],
-        "solution": ["구체적 실행 방안1 (근거 포함)", "구체적 실행 방안2 (근거 포함)"]
-    }
+    [작성 규칙]
+    1. 입력 데이터의 영문 키워드(예: 'operation', 'scale', 'menus', 'delivery' 등)를 결과에 그대로 출력하지 마십시오.
+    2. 반드시 문맥에 맞는 자연스러운 한국어(예: '운영 방식', '매장 규모', '메뉴 구성', '배달 시스템')로 의역하여 작성하세요.
+    3. 구체적인 수치(매출액, 유동인구 수 등)는 근거로 적극 활용하세요.
+
+    [포맷 규칙]
+    응답은 반드시 '제목'과 '솔루션'이 짝지어진 JSON 배열(List of Objects) 포맷이어야 합니다.
+    Markdown 코드 블록(```json) 없이 순수 JSON 텍스트만 반환하세요.
+    
+    [
+        {
+            "title": "전략 제목 1",
+            "solution": "구체적인 실행 방안 및 근거 1"
+        },
+        {
+            "title": "전략 제목 2",
+            "solution": "구체적인 실행 방안 및 근거 2"
+        }
+    ]
     """
 
     user_prompt_text = f"""
@@ -200,10 +213,29 @@ async def request_llm_generation(final_context: dict):
             
             # Markdown 백틱 제거 및 파싱
             cleaned_text = content_text.replace("```json", "").replace("```", "").strip()
-            result = json.loads(cleaned_text)
             
-            print(f"--> Gemini 응답 성공 (제목: {result.get('title')})")
-            return result
+            # AI가 준 [{}, {}] 형태의 리스트 파싱
+            result_list = json.loads(cleaned_text)
+            
+            # DB 저장 함수 형식에 맞춰서 분리
+            titles = []
+            solutions = []
+            
+            if isinstance(result_list, list):
+                for item in result_list:
+                    titles.append(item.get("title", "제목 없음"))
+                    solutions.append(item.get("solution", "내용 없음"))
+            elif isinstance(result_list, dict):
+                # 단일 객체일 경우 처리
+                titles.append(result_list.get("title", "제목 없음"))
+                solutions.append(result_list.get("solution", "내용 없음"))
+            
+            print(f"--> Gemini 응답 성공 ({len(titles)}개 전략 도출)")
+            
+            return {
+                "title": titles,
+                "solution": solutions
+            }
             
         except (KeyError, json.JSONDecodeError) as e:
             print(f"!! 응답 파싱 실패: {e}\n원본: {response_json}")
